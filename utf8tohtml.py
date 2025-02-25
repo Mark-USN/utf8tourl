@@ -1,36 +1,45 @@
 ﻿#!/usr/bin/env python3
+import argparse
+import re
 import sys
 
-def unicode_to_hex(text):
-    return '%'.join(f"{ord(char):x}" for char in text)
-
-def utf8_to_hex_bytes(text):
-    return '%' + '%'.join(f"{byte:02x}" for byte in text.encode('utf-8'))
-
-def utf8_to_hex(text):
+def utf8_to_url_encoding(text, add_quotes=False, include_pattern=None):
     hex_parts = []
+    should_encode_all = include_pattern is None  # If no --include, encode everything
+
     for char in text:
-        utf8_bytes = char.encode('utf-8')  # Get UTF-8 encoding
-        if len(utf8_bytes) == 1:
-            hex_parts.append(f"%{utf8_bytes[0]:02x}")  # Single byte
+        utf8_bytes = char.encode('utf-8')
+
+        if should_encode_all or (include_pattern and re.match(include_pattern, char)):
+            encoded_char = ''.join(f"%{b:02x}" for b in utf8_bytes)  # Encode matching chars
         else:
-            hex_parts.append(f"%{''.join(f'{b:02x}' for b in utf8_bytes)}")  # Multi-byte combined
+            encoded_char = char  # Keep non-matching characters unchanged
 
-    return ''.join(hex_parts)
+        hex_parts.append(encoded_char)
+    
+    if add_quotes:
+        outstr = '"' + ''.join(hex_parts) + '"'
+    else:
+        outstr = ''.join(hex_parts)
 
-def url_encode(text):
-    return ''.join(f"%{byte:02x}" for byte in text.encode('utf-8'))
+    return outstr
 
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: python utf8_to_hex.py <text>")
-        sys.exit(1)
-        
-    input_text = ' '.join(sys.argv[1:])
-    hex_output = url_encode(input_text)
+    parser = argparse.ArgumentParser(description="Convert UTF-8 text to URL encoding with optional filtering.")
     
-    print(hex_output)
+    parser.add_argument("--include-quotes", action="store_true", help="Always encode quotes as %22 or %27")
+    parser.add_argument("--include", type=str, help="Regex pattern to determine which characters should be URL-encoded")
+    parser.add_argument("text", nargs="?", help="The text to convert (or leave empty to read from stdin)")
+
+    args = parser.parse_args()
+
+    # Read from stdin if no text is provided
+    input_text = args.text if args.text else sys.stdin.read().strip()
+
+    # Process text with filters
+    encoded_output = utf8_to_url_encoding(input_text, args.include_quotes, args.include)
+    
+    print(encoded_output)
 
 if __name__ == "__main__":
     main()
-
